@@ -2,23 +2,23 @@ import { prisma } from "@/lib/db";
 
 export const defaultTheme = {
   id: "theme",
-  siteName: "Dal dolore al fitness",
-  eyebrow: "Trasformazione, cura, forza",
-  heroTitle: "Dal dolore al fitness",
+  siteName: "Dal dolore al Fitness",
+  eyebrow: "Fitness, recupero, metodo",
+  heroTitle: "Dal dolore al Fitness",
   heroSubtitle:
-    "Un percorso sincero per trasformare il peso emotivo e fisico in energia, disciplina e amore per te stessa.",
+    "Un blog essenziale e concreto per allenarti meglio, recuperare con criterio e costruire abitudini che durano.",
   introText:
-    "Qui trovi racconti, strumenti e riflessioni pensati per donne che vogliono tornare a sentirsi bene nel proprio corpo e nella propria mente.",
-  aboutTitle: "Un percorso condiviso",
+    "Contenuti chiari, niente rumore, solo indicazioni utili per migliorare corpo, mente e costanza nel tempo.",
+  aboutTitle: "Un punto di riferimento chiaro, senza eccessi",
   aboutText:
-    "Questo blog nasce per accompagnare, con gentilezza e concretezza, chi sta attraversando un periodo di stanchezza, aumento di peso o disagio interiore.",
-  ctaLabel: "Leggi gli articoli",
-  ctaLink: "/#articoli",
-  primaryColor: "#b85ca6",
-  secondaryColor: "#8b7bf0",
-  accentColor: "#f7ebff",
-  backgroundColor: "#fff7fb",
-  textColor: "#2d1833",
+    "Questo spazio è pensato per chi vuole migliorare corpo e abitudini con un linguaggio diretto, professionale e leggibile.",
+  ctaLabel: "Vai al blog",
+  ctaLink: "/blog",
+  primaryColor: "#d6a84f",
+  secondaryColor: "#203244",
+  accentColor: "#f7f8fa",
+  backgroundColor: "#eef1f4",
+  textColor: "#0f1720",
 };
 
 export async function getThemeSettings() {
