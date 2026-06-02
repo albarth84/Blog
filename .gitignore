@@ -5,3 +5,5 @@ public/uploads
 .env.local
 .env.production
 .DS_Store
+.vercel
+.env*
