@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPostBySlug } from "@/lib/posts";
 import { getThemeSettings } from "@/lib/theme";
 import { renderContent } from "@/lib/content";
+import { PublicNav } from "@/components/PublicNav";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,7 @@ export default async function BlogPostPage({
             <span className="brand-mark" />
             <span>{theme.siteName}</span>
           </Link>
-          <Link href="/" className="button-secondary">
-            Torna alla home
-          </Link>
+          <PublicNav />
         </div>
       </header>
 

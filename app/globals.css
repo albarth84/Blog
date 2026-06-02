@@ -197,6 +197,10 @@ p {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.feature-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .post-card {
   overflow: hidden;
 }
@@ -237,6 +241,25 @@ p {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.public-nav {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: var(--muted);
+}
+
+.public-nav a {
+  padding: 10px 14px;
+  border-radius: 999px;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.public-nav a:hover {
+  background: rgba(184, 92, 166, 0.12);
+  color: var(--primary-strong);
 }
 
 .brand {

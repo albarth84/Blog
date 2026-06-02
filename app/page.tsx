@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getThemeSettings } from "@/lib/theme";
 import { listPublishedPosts } from "@/lib/posts";
+import { PublicNav } from "@/components/PublicNav";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +17,7 @@ export default async function HomePage() {
             <span className="brand-mark" />
             <span>{theme.siteName}</span>
           </Link>
-          <Link href="/admin" className="button-secondary">
-            Area admin
-          </Link>
+          <PublicNav />
         </div>
       </header>
 
@@ -46,6 +45,40 @@ export default async function HomePage() {
           <div className="card card-pad">
             <h2>{theme.aboutTitle}</h2>
             <p>{theme.aboutText}</p>
+            <div className="hero-actions" style={{ marginTop: 18 }}>
+              <Link className="button" href="/chi-sono">
+                Chi sono
+              </Link>
+              <Link className="button-secondary" href="/admin">
+                Area admin
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid feature-grid">
+            <article className="card card-pad">
+              <span className="badge">Percorso</span>
+              <h3>Fisico e mentale</h3>
+              <p>
+                Il blog racconta il cambiamento da due prospettive: il corpo che cambia e la testa che impara a
+                sostenerlo.
+              </p>
+            </article>
+            <article className="card card-pad">
+              <span className="badge">Metodo</span>
+              <h3>Gentile ma concreto</h3>
+              <p>
+                Niente approcci estremi: solo abitudini sostenibili, chiarezza e un tono che non giudica.
+              </p>
+            </article>
+            <article className="card card-pad">
+              <span className="badge">Obiettivo</span>
+              <h3>Aiutare altre donne</h3>
+              <p>
+                Ogni articolo è pensato per chi vive lo stesso peso fisico o emotivo e vuole ripartire con
+                più fiducia.
+              </p>
+            </article>
           </div>
 
           <div id="articoli" className="grid posts-grid">
@@ -90,6 +123,23 @@ export default async function HomePage() {
               </Link>
             </div>
           ) : null}
+
+          <div className="card card-pad">
+            <span className="badge">Risorse</span>
+            <h2>Da dove iniziare</h2>
+            <p>
+              Se sei all’inizio del percorso, ti consiglio di partire da racconti brevi, realistici e ripetibili:
+              ascolto del corpo, routine semplice, mente più calma.
+            </p>
+            <div className="hero-actions">
+              <Link className="button-secondary" href="/chi-sono">
+                Leggi la mia storia
+              </Link>
+              <Link className="button-secondary" href="/blog/il-primo-passo">
+                Vai al primo articolo
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
     </main>
