@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PostStatus {
+  draft
+  published
+}
+
+enum MediaType {
+  image
+  video
+}
+
+model Post {
+  id            String     @id @default(cuid())
+  title         String
+  slug          String     @unique
+  excerpt       String
+  content       String     @db.Text
+  coverImageUrl String?
+  coverImageAlt String?
+  status        PostStatus  @default(draft)
+  featured      Boolean     @default(false)
+  publishedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model ThemeSettings {
+  id               String   @id @default("theme")
+  siteName         String   @default("Dal dolore al fitness")
+  eyebrow          String   @default("Trasformazione, cura, forza")
+  heroTitle        String   @default("Dal dolore al fitness")
+  heroSubtitle     String   @default("Un percorso sincero per trasformare il peso emotivo e fisico in energia, disciplina e amore per te stessa.")
+  introText        String   @default("Qui trovi racconti, strumenti e riflessioni pensati per donne che vogliono tornare a sentirsi bene nel proprio corpo e nella propria mente.")
+  aboutTitle       String   @default("Un percorso condiviso")
+  aboutText        String   @default("Questo blog nasce per accompagnare, con gentilezza e concretezza, chi sta attraversando un periodo di stanchezza, aumento di peso o disagio interiore.")
+  ctaLabel         String   @default("Leggi gli articoli")
+  ctaLink          String   @default("/#articoli")
+  primaryColor     String   @default("#b85ca6")
+  secondaryColor   String   @default("#8b7bf0")
+  accentColor      String   @default("#f7ebff")
+  backgroundColor  String   @default("#fff7fb")
+  textColor        String   @default("#2d1833")
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+}
+
+model MediaAsset {
+  id        String    @id @default(cuid())
+  url       String
+  type      MediaType
+  alt       String?
+  filename  String
+  createdAt DateTime  @default(now())
+}
