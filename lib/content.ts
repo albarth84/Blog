@@ -21,11 +21,21 @@ export function renderContent(source: string) {
       "hr",
       "span",
     ]),
+    allowedStyles: {
+      figure: {
+        width: [/^\d+(\.\d+)?%$/],
+      },
+      img: {
+        width: [/^\d+(\.\d+)?%$/],
+      },
+    },
     allowedAttributes: {
       a: ["href", "name", "target", "rel"],
-      img: ["src", "alt", "title", "loading"],
-      video: ["src", "controls", "poster", "playsinline", "preload"],
+      img: ["src", "alt", "title", "loading", "style", "data-media-id"],
+      video: ["src", "controls", "poster", "playsinline", "preload", "style", "data-media-id"],
       source: ["src", "type"],
+      figure: ["class", "style", "data-media-id"],
+      figcaption: ["class"],
       span: ["class"],
       "*": ["class"],
     },

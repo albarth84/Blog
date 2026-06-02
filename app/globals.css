@@ -396,6 +396,24 @@ p {
   color: #8f7c91;
 }
 
+.rich-editor figure[data-media-id] {
+  margin: 20px 0;
+}
+
+.rich-editor figure[data-media-id] img,
+.rich-editor figure[data-media-id] video {
+  display: block;
+  width: 100%;
+}
+
+.rich-editor figure[data-media-id].media-selected,
+.rich-editor img[data-media-id].media-selected,
+.rich-editor video[data-media-id].media-selected {
+  outline: 3px solid rgba(184, 92, 166, 0.75);
+  outline-offset: 4px;
+  border-radius: 18px;
+}
+
 .cover-preview,
 .cover-placeholder {
   width: 100%;

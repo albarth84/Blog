@@ -31,11 +31,32 @@ type ToolbarGroup = {
   }>;
 };
 
+type SelectedImage = {
+  id: string;
+  src: string;
+  alt: string;
+  width: number;
+};
+
+function makeMediaId() {
+  return crypto.randomUUID();
+}
+
+function clampWidth(value: number) {
+  return Math.min(100, Math.max(20, value));
+}
+
+function parseWidth(input?: string) {
+  const parsed = Number.parseFloat(input || "");
+  return Number.isFinite(parsed) ? clampWidth(parsed) : 100;
+}
+
 export function PostEditor({ mode, initial }: PostEditorProps) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement>(null);
   const coverFileRef = useRef<HTMLInputElement>(null);
   const contentFileRef = useRef<HTMLInputElement>(null);
+  const replacementFileRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [excerpt, setExcerpt] = useState(initial?.excerpt ?? "");
@@ -49,7 +70,7 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
   const [coverUploading, setCoverUploading] = useState(false);
   const [contentUploading, setContentUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-
+  const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const initialHtml = useMemo(() => (initial?.content ? renderContent(initial.content) : ""), [initial?.content]);
   const preview = useMemo(() => renderContent(content), [content]);
 
@@ -94,6 +115,54 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
     setContent(editor.innerHTML);
   }
 
+  function getMediaElement(id: string) {
+    return editorRef.current?.querySelector<HTMLElement>(`[data-media-id="${id}"]`) ?? null;
+  }
+
+  function getSelectedImageElement() {
+    if (!selectedImage) {
+      return null;
+    }
+
+    const element = getMediaElement(selectedImage.id);
+    if (!element) {
+      return null;
+    }
+
+    return element;
+  }
+
+  function snapshotImage(element: HTMLElement): SelectedImage {
+    const id = element.dataset.mediaId || makeMediaId();
+    element.dataset.mediaId = id;
+
+    const img = element.tagName.toLowerCase() === "img" ? (element as HTMLImageElement) : element.querySelector("img");
+    const src = img?.getAttribute("src") || "";
+    const alt = img?.getAttribute("alt") || "";
+    const width = parseWidth(element.style.width || img?.style.width || "100%");
+
+    return { id, src, alt, width };
+  }
+
+  function selectImageElement(target: HTMLElement) {
+    const element = target.closest<HTMLElement>("figure[data-media-id]") || target.closest<HTMLElement>("[data-media-id]") || target;
+    const img = element.tagName.toLowerCase() === "img" ? element : element.querySelector("img");
+
+    if (!img) {
+      return;
+    }
+
+    const snapshot = snapshotImage(element);
+    editorRef.current?.querySelectorAll(".media-selected").forEach((node) => node.classList.remove("media-selected"));
+    element.classList.add("media-selected");
+    setSelectedImage(snapshot);
+  }
+
+  function clearSelectedImage() {
+    editorRef.current?.querySelectorAll(".media-selected").forEach((node) => node.classList.remove("media-selected"));
+    setSelectedImage(null);
+  }
+
   function insertHtml(html: string) {
     const editor = editorRef.current;
     if (!editor) {
@@ -123,6 +192,29 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
     selection.removeAllRanges();
     selection.addRange(range);
     syncContentFromEditor();
+  }
+
+  function insertImageHtml(src: string, alt: string, width = 100, focusMedia = true) {
+    const mediaId = makeMediaId();
+    insertHtml(
+      `\n<figure data-media-id="${mediaId}" style="width: ${width}%"><img data-media-id="${mediaId}" src="${src}" alt="${alt}" loading="lazy" /></figure>\n`
+    );
+
+    if (focusMedia) {
+      requestAnimationFrame(() => {
+        const element = getMediaElement(mediaId);
+        if (element) {
+          selectImageElement(element);
+        }
+      });
+    }
+  }
+
+  function insertVideoHtml(src: string) {
+    const mediaId = makeMediaId();
+    insertHtml(
+      `\n<figure data-media-id="${mediaId}"><video data-media-id="${mediaId}" controls playsinline src="${src}"></video></figure>\n`
+    );
   }
 
   function applyFormat(command: string, value?: string) {
@@ -201,12 +293,12 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
 
     try {
       const uploaded = await uploadMedia(file);
-      const html =
-        uploaded.type === "video"
-          ? `\n<figure><video controls playsinline src="${uploaded.url}"></video></figure>\n`
-          : `\n<figure><img src="${uploaded.url}" alt="${coverImageAlt || title || "Immagine articolo"}" loading="lazy" /></figure>\n`;
-
-      insertHtml(html);
+      const alt = coverImageAlt || title || "Immagine articolo";
+      if (uploaded.type === "video") {
+        insertVideoHtml(uploaded.url);
+      } else {
+        insertImageHtml(uploaded.url, alt, 100);
+      }
       setMessage("Media inserito nell'articolo.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Errore durante l'upload.");
@@ -239,9 +331,7 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
           continue;
         }
 
-        insertHtml(
-          `\n<figure><img src="${uploaded.url}" alt="${coverImageAlt || title || "Immagine articolo"}" loading="lazy" /></figure>\n`
-        );
+        insertImageHtml(uploaded.url, coverImageAlt || title || "Immagine articolo", 100, false);
       }
 
       setMessage("Immagini inserite tramite drag and drop.");
@@ -250,6 +340,74 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
     } finally {
       setContentUploading(false);
     }
+  }
+
+  function applySelectedImageChanges(next: Partial<SelectedImage>) {
+    const element = getSelectedImageElement();
+    if (!element || !selectedImage) {
+      return;
+    }
+
+    const snapshot = { ...selectedImage, ...next };
+    const img = element.tagName.toLowerCase() === "img" ? (element as HTMLImageElement) : element.querySelector("img");
+    if (!img) {
+      return;
+    }
+
+    if (snapshot.src) {
+      img.setAttribute("src", snapshot.src);
+    }
+
+    img.setAttribute("alt", snapshot.alt);
+
+    if (element.tagName.toLowerCase() === "figure") {
+      element.style.width = `${clampWidth(snapshot.width)}%`;
+      img.style.width = "100%";
+    } else {
+      img.style.width = `${clampWidth(snapshot.width)}%`;
+    }
+
+    setSelectedImage(snapshot);
+    syncContentFromEditor();
+  }
+
+  async function replaceSelectedImage() {
+    const file = replacementFileRef.current?.files?.[0];
+    if (!file || !selectedImage) {
+      return;
+    }
+
+    setContentUploading(true);
+    setMessage(null);
+
+    try {
+      const uploaded = await uploadMedia(file);
+      if (uploaded.type !== "image") {
+        throw new Error("Puoi sostituire solo con un'immagine.");
+      }
+
+      applySelectedImageChanges({ src: uploaded.url });
+      setMessage("Immagine sostituita.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Errore durante la sostituzione.");
+    } finally {
+      setContentUploading(false);
+      if (replacementFileRef.current) {
+        replacementFileRef.current.value = "";
+      }
+    }
+  }
+
+  function deleteSelectedImage() {
+    const element = getSelectedImageElement();
+    if (!element) {
+      return;
+    }
+
+    element.remove();
+    clearSelectedImage();
+    syncContentFromEditor();
+    setMessage("Immagine eliminata.");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -319,11 +477,26 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
       buttons: [
         {
           label: "Immagine",
-          onClick: () => insertHtml('\n<figure><img src="" alt="" loading="lazy" /></figure>\n'),
+          onClick: () => {
+            const src = window.prompt("URL dell'immagine:");
+            if (!src) {
+              return;
+            }
+
+            const alt = window.prompt("Testo alternativo:", "Immagine articolo") || "Immagine articolo";
+            insertImageHtml(src, alt, 100);
+          },
         },
         {
           label: "Video",
-          onClick: () => insertHtml('\n<figure><video controls playsinline src=""></video></figure>\n'),
+          onClick: () => {
+            const src = window.prompt("URL del video:");
+            if (!src) {
+              return;
+            }
+
+            insertVideoHtml(src);
+          },
         },
       ],
     },
@@ -373,6 +546,15 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
               aria-multiline="true"
               data-placeholder="Scrivi qui il tuo articolo. Puoi formattare il testo e inserire immagini o video nel corpo."
               onInput={(event) => setContent((event.currentTarget as HTMLDivElement).innerHTML)}
+              onClick={(event) => {
+                const target = event.target as HTMLElement;
+                const mediaTarget = target.closest<HTMLElement>("[data-media-id]");
+                if (mediaTarget) {
+                  selectImageElement(mediaTarget);
+                } else if (!target.closest(".toolbar-shell")) {
+                  clearSelectedImage();
+                }
+              }}
               onDragOver={(event) => {
                 event.preventDefault();
                 setIsDragging(true);
@@ -451,6 +633,62 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
               </button>
             </div>
           </div>
+
+          {selectedImage ? (
+            <div className="panel">
+              <div className="grid">
+                <div className="editor-header">
+                  <span>Immagine selezionata</span>
+                  <div className="editor-hint">Modifica, ridimensiona o elimina l’immagine dal contenuto</div>
+                </div>
+
+                <label className="field">
+                  <span>URL immagine</span>
+                  <input
+                    value={selectedImage.src}
+                    onChange={(event) => applySelectedImageChanges({ src: event.target.value })}
+                    placeholder="URL immagine"
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Testo alternativo</span>
+                  <input
+                    value={selectedImage.alt}
+                    onChange={(event) => applySelectedImageChanges({ alt: event.target.value })}
+                    placeholder="Testo alternativo"
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Ridimensiona</span>
+                  <input
+                    type="range"
+                    min="20"
+                    max="100"
+                    step="5"
+                    value={selectedImage.width}
+                    onChange={(event) => applySelectedImageChanges({ width: Number(event.target.value) })}
+                  />
+                  <div className="muted">{selectedImage.width}%</div>
+                </label>
+
+                <label className="field">
+                  <span>Sostituisci immagine dal PC</span>
+                  <input ref={replacementFileRef} type="file" accept="image/*" />
+                </label>
+
+                <div className="hero-actions">
+                  <button type="button" className="button-secondary" onClick={replaceSelectedImage} disabled={contentUploading}>
+                    {contentUploading ? "Aggiorno..." : "Sostituisci"}
+                  </button>
+                  <button type="button" className="button-danger" onClick={deleteSelectedImage}>
+                    Elimina
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
