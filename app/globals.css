@@ -385,6 +385,12 @@ p {
   box-shadow: 0 0 0 4px rgba(139, 123, 240, 0.12);
 }
 
+.rich-editor-drag {
+  border-color: rgba(184, 92, 166, 0.8);
+  background: rgba(247, 235, 255, 0.9);
+  box-shadow: 0 0 0 4px rgba(184, 92, 166, 0.12);
+}
+
 .rich-editor:empty::before {
   content: attr(data-placeholder);
   color: #8f7c91;
@@ -416,6 +422,64 @@ p {
 .field select:focus {
   border-color: rgba(139, 123, 240, 0.5);
   box-shadow: 0 0 0 4px rgba(139, 123, 240, 0.12);
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.editor-hint {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.toolbar-shell {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(141, 61, 137, 0.16);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.toolbar-group {
+  display: grid;
+  gap: 10px;
+}
+
+.toolbar-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--primary-strong);
+  font-weight: 800;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar-button {
+  border: 1px solid rgba(141, 61, 137, 0.18);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.toolbar-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(141, 61, 137, 0.12);
+  background: rgba(184, 92, 166, 0.08);
 }
 
 .stats-grid {

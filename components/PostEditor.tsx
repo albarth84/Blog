@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { renderContent } from "@/lib/content";
 
@@ -23,11 +23,23 @@ type UploadedMedia = {
   type: "image" | "video";
 };
 
+type ToolbarGroup = {
+  label: string;
+  buttons: Array<{
+    label: string;
+    onClick: () => void;
+  }>;
+};
+
 export function PostEditor({ mode, initial }: PostEditorProps) {
   const router = useRouter();
+  const editorRef = useRef<HTMLDivElement>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
+  const contentFileRef = useRef<HTMLInputElement>(null);
+  const initializedRef = useRef(false);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [excerpt, setExcerpt] = useState(initial?.excerpt ?? "");
-  const [content, setContent] = useState(() => (initial?.content ? renderContent(initial.content) : ""));
+  const [content, setContent] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState(initial?.coverImageUrl ?? "");
   const [coverImageAlt, setCoverImageAlt] = useState(initial?.coverImageAlt ?? "");
   const [status, setStatus] = useState<"draft" | "published">(initial?.status ?? "draft");
@@ -36,17 +48,25 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const [contentUploading, setContentUploading] = useState(false);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const coverFileRef = useRef<HTMLInputElement>(null);
-  const contentFileRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
+  const initialHtml = useMemo(() => (initial?.content ? renderContent(initial.content) : ""), [initial?.content]);
   const preview = useMemo(() => renderContent(content), [content]);
 
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== content) {
-      editorRef.current.innerHTML = content;
+    if (initializedRef.current) {
+      return;
     }
-  }, [content]);
+
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    editor.innerHTML = initialHtml;
+    setContent(initialHtml);
+    initializedRef.current = true;
+  }, [initialHtml]);
 
   async function uploadMedia(file: File): Promise<UploadedMedia> {
     const formData = new FormData();
@@ -65,6 +85,15 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
     return response.json();
   }
 
+  function syncContentFromEditor() {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    setContent(editor.innerHTML);
+  }
+
   function insertHtml(html: string) {
     const editor = editorRef.current;
     if (!editor) {
@@ -73,16 +102,17 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
 
     editor.focus();
     const selection = window.getSelection();
+
     if (!selection || selection.rangeCount === 0) {
       editor.insertAdjacentHTML("beforeend", html);
-      setContent(editor.innerHTML);
+      syncContentFromEditor();
       return;
     }
 
     const range = selection.getRangeAt(0);
     if (!editor.contains(range.commonAncestorContainer)) {
       editor.insertAdjacentHTML("beforeend", html);
-      setContent(editor.innerHTML);
+      syncContentFromEditor();
       return;
     }
 
@@ -92,15 +122,42 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
     range.collapse(false);
     selection.removeAllRanges();
     selection.addRange(range);
-    setContent(editor.innerHTML);
+    syncContentFromEditor();
   }
 
   function applyFormat(command: string, value?: string) {
     editorRef.current?.focus();
     document.execCommand(command, false, value);
-    if (editorRef.current) {
-      setContent(editorRef.current.innerHTML);
+    syncContentFromEditor();
+  }
+
+  function insertLink() {
+    const url = window.prompt("Incolla il link da inserire:");
+    if (!url) {
+      return;
     }
+
+    editorRef.current?.focus();
+    document.execCommand("createLink", false, url);
+    syncContentFromEditor();
+  }
+
+  function insertHeading(level: 2 | 3) {
+    insertHtml(`<h${level}>Sottotitolo</h${level}>`);
+  }
+
+  function insertList(ordered: boolean) {
+    editorRef.current?.focus();
+    document.execCommand(ordered ? "insertOrderedList" : "insertUnorderedList");
+    syncContentFromEditor();
+  }
+
+  function setAlignment(alignment: "left" | "center" | "right") {
+    editorRef.current?.focus();
+    const command =
+      alignment === "left" ? "justifyLeft" : alignment === "center" ? "justifyCenter" : "justifyRight";
+    document.execCommand(command);
+    syncContentFromEditor();
   }
 
   async function handleCoverUpload() {
@@ -161,6 +218,40 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
     }
   }
 
+  async function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+
+    const files = Array.from(event.dataTransfer.files || []);
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+
+    if (imageFiles.length === 0) {
+      return;
+    }
+
+    setContentUploading(true);
+    setMessage(null);
+
+    try {
+      for (const file of imageFiles) {
+        const uploaded = await uploadMedia(file);
+        if (uploaded.type !== "image") {
+          continue;
+        }
+
+        insertHtml(
+          `\n<figure><img src="${uploaded.url}" alt="${coverImageAlt || title || "Immagine articolo"}" loading="lazy" /></figure>\n`
+        );
+      }
+
+      setMessage("Immagini inserite tramite drag and drop.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Errore durante il drag and drop.");
+    } finally {
+      setContentUploading(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -197,6 +288,47 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
     }
   }
 
+  const toolbarGroups: ToolbarGroup[] = [
+    {
+      label: "Testo",
+      buttons: [
+        { label: "Grassetto", onClick: () => applyFormat("bold") },
+        { label: "Corsivo", onClick: () => applyFormat("italic") },
+        { label: "Link", onClick: insertLink },
+      ],
+    },
+    {
+      label: "Struttura",
+      buttons: [
+        { label: "Titolo H2", onClick: () => insertHeading(2) },
+        { label: "Titolo H3", onClick: () => insertHeading(3) },
+        { label: "Elenco", onClick: () => insertList(false) },
+        { label: "Lista numerata", onClick: () => insertList(true) },
+      ],
+    },
+    {
+      label: "Allineamento",
+      buttons: [
+        { label: "Sinistra", onClick: () => setAlignment("left") },
+        { label: "Centro", onClick: () => setAlignment("center") },
+        { label: "Destra", onClick: () => setAlignment("right") },
+      ],
+    },
+    {
+      label: "Media",
+      buttons: [
+        {
+          label: "Immagine",
+          onClick: () => insertHtml('\n<figure><img src="" alt="" loading="lazy" /></figure>\n'),
+        },
+        {
+          label: "Video",
+          onClick: () => insertHtml('\n<figure><video controls playsinline src=""></video></figure>\n'),
+        },
+      ],
+    },
+  ];
+
   return (
     <form className="grid" onSubmit={handleSubmit}>
       <div className="editor-grid">
@@ -212,53 +344,41 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
           </label>
 
           <div className="field">
-            <span>Contenuto visuale</span>
-            <div className="toolbar">
-              <button type="button" className="button-secondary" onClick={() => applyFormat("bold")}>
-                Grassetto
-              </button>
-              <button type="button" className="button-secondary" onClick={() => applyFormat("italic")}>
-                Corsivo
-              </button>
-              <button type="button" className="button-secondary" onClick={() => insertHtml("<h2>Sottotitolo</h2>")}>
-                Titolo H2
-              </button>
-              <button type="button" className="button-secondary" onClick={() => insertHtml("<blockquote>Citazione</blockquote>")}>
-                Citazione
-              </button>
-              <button type="button" className="button-secondary" onClick={() => insertHtml("<ul><li>Punto elenco</li></ul>")}>
-                Elenco
-              </button>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() =>
-                  insertHtml(
-                    '\n<figure><img src="" alt="" loading="lazy" /></figure>\n'
-                  )
-                }
-              >
-                Immagine
-              </button>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => insertHtml('\n<figure><video controls playsinline src=""></video></figure>\n')}
-              >
-                Video
-              </button>
+            <div className="editor-header">
+              <span>Contenuto visuale</span>
+              <div className="editor-hint">Trascina immagini dentro l’editor oppure usa la barra strumenti</div>
+            </div>
+
+            <div className="toolbar-shell">
+              {toolbarGroups.map((group) => (
+                <div className="toolbar-group" key={group.label}>
+                  <span className="toolbar-label">{group.label}</span>
+                  <div className="toolbar">
+                    {group.buttons.map((button) => (
+                      <button type="button" className="toolbar-button" key={button.label} onClick={button.onClick}>
+                        {button.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div
               ref={editorRef}
-              className="rich-editor"
+              className={`rich-editor ${isDragging ? "rich-editor-drag" : ""}`}
               contentEditable
               suppressContentEditableWarning
               role="textbox"
               aria-multiline="true"
               data-placeholder="Scrivi qui il tuo articolo. Puoi formattare il testo e inserire immagini o video nel corpo."
               onInput={(event) => setContent((event.currentTarget as HTMLDivElement).innerHTML)}
-              dangerouslySetInnerHTML={{ __html: content }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
             />
           </div>
 
