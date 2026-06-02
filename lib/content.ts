@@ -7,7 +7,9 @@ marked.setOptions({
 });
 
 export function renderContent(source: string) {
-  const html = marked.parse(source, { async: false }) as string;
+  const trimmed = source.trim();
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(trimmed);
+  const html = looksLikeHtml ? trimmed : ((marked.parse(source, { async: false }) as string) ?? "");
 
   return sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([

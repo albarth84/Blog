@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { renderContent } from "@/lib/content";
 
@@ -18,77 +18,145 @@ type PostEditorProps = {
   };
 };
 
+type UploadedMedia = {
+  url: string;
+  type: "image" | "video";
+};
+
 export function PostEditor({ mode, initial }: PostEditorProps) {
   const router = useRouter();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [excerpt, setExcerpt] = useState(initial?.excerpt ?? "");
-  const [content, setContent] = useState(initial?.content ?? "");
+  const [content, setContent] = useState(() => (initial?.content ? renderContent(initial.content) : ""));
   const [coverImageUrl, setCoverImageUrl] = useState(initial?.coverImageUrl ?? "");
   const [coverImageAlt, setCoverImageAlt] = useState(initial?.coverImageAlt ?? "");
   const [status, setStatus] = useState<"draft" | "published">(initial?.status ?? "draft");
   const [featured, setFeatured] = useState(Boolean(initial?.featured));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [contentUploading, setContentUploading] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
+  const contentFileRef = useRef<HTMLInputElement>(null);
 
   const preview = useMemo(() => renderContent(content), [content]);
 
-  function insertAtCursor(snippet: string) {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setContent((current) => `${current}\n${snippet}\n`);
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== content) {
+      editorRef.current.innerHTML = content;
+    }
+  }, [content]);
+
+  async function uploadMedia(file: File): Promise<UploadedMedia> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/media/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error ?? "Upload non riuscito");
+    }
+
+    return response.json();
+  }
+
+  function insertHtml(html: string) {
+    const editor = editorRef.current;
+    if (!editor) {
       return;
     }
 
-    const start = textarea.selectionStart ?? content.length;
-    const end = textarea.selectionEnd ?? content.length;
-    const next = `${content.slice(0, start)}${snippet}${content.slice(end)}`;
-    setContent(next);
+    editor.focus();
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      editor.insertAdjacentHTML("beforeend", html);
+      setContent(editor.innerHTML);
+      return;
+    }
 
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const position = start + snippet.length;
-      textarea.setSelectionRange(position, position);
-    });
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) {
+      editor.insertAdjacentHTML("beforeend", html);
+      setContent(editor.innerHTML);
+      return;
+    }
+
+    const fragment = range.createContextualFragment(html);
+    range.deleteContents();
+    range.insertNode(fragment);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    setContent(editor.innerHTML);
   }
 
-  async function uploadSelectedFile() {
-    const file = fileRef.current?.files?.[0];
+  function applyFormat(command: string, value?: string) {
+    editorRef.current?.focus();
+    document.execCommand(command, false, value);
+    if (editorRef.current) {
+      setContent(editorRef.current.innerHTML);
+    }
+  }
+
+  async function handleCoverUpload() {
+    const file = coverFileRef.current?.files?.[0];
     if (!file) {
       return;
     }
 
-    setSaving(true);
+    setCoverUploading(true);
     setMessage(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload non riuscito");
+      const uploaded = await uploadMedia(file);
+      if (uploaded.type !== "image") {
+        throw new Error("La copertina deve essere un'immagine.");
       }
 
-      const data = (await response.json()) as { url: string; type: "image" | "video" };
-      const snippet =
-        data.type === "video"
-          ? `\n<video controls playsinline src="${data.url}"></video>\n`
-          : `\n<img src="${data.url}" alt="${coverImageAlt || title || "Immagine articolo"}" loading="lazy" />\n`;
+      setCoverImageUrl(uploaded.url);
+      if (!coverImageAlt) {
+        setCoverImageAlt(title || "Copertina articolo");
+      }
+      setMessage("Copertina caricata dal PC.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Errore durante il caricamento della copertina.");
+    } finally {
+      setCoverUploading(false);
+      if (coverFileRef.current) {
+        coverFileRef.current.value = "";
+      }
+    }
+  }
 
-      insertAtCursor(snippet);
-      setMessage("Media caricato e inserito nell'articolo.");
+  async function handleContentMediaUpload() {
+    const file = contentFileRef.current?.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setContentUploading(true);
+    setMessage(null);
+
+    try {
+      const uploaded = await uploadMedia(file);
+      const html =
+        uploaded.type === "video"
+          ? `\n<figure><video controls playsinline src="${uploaded.url}"></video></figure>\n`
+          : `\n<figure><img src="${uploaded.url}" alt="${coverImageAlt || title || "Immagine articolo"}" loading="lazy" /></figure>\n`;
+
+      insertHtml(html);
+      setMessage("Media inserito nell'articolo.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Errore durante l'upload.");
     } finally {
-      setSaving(false);
-      if (fileRef.current) {
-        fileRef.current.value = "";
+      setContentUploading(false);
+      if (contentFileRef.current) {
+        contentFileRef.current.value = "";
       }
     }
   }
@@ -143,27 +211,56 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
             <textarea value={excerpt} onChange={(event) => setExcerpt(event.target.value)} required />
           </label>
 
-          <label className="field">
-            <span>Contenuto</span>
+          <div className="field">
+            <span>Contenuto visuale</span>
             <div className="toolbar">
-              <button type="button" className="button-secondary" onClick={() => insertAtCursor("<h2>Sottotitolo</h2>\n")}>
+              <button type="button" className="button-secondary" onClick={() => applyFormat("bold")}>
+                Grassetto
+              </button>
+              <button type="button" className="button-secondary" onClick={() => applyFormat("italic")}>
+                Corsivo
+              </button>
+              <button type="button" className="button-secondary" onClick={() => insertHtml("<h2>Sottotitolo</h2>")}>
                 Titolo H2
               </button>
-              <button type="button" className="button-secondary" onClick={() => insertAtCursor("\n<img src=\"\" alt=\"\" loading=\"lazy\" />\n")}>
+              <button type="button" className="button-secondary" onClick={() => insertHtml("<blockquote>Citazione</blockquote>")}>
+                Citazione
+              </button>
+              <button type="button" className="button-secondary" onClick={() => insertHtml("<ul><li>Punto elenco</li></ul>")}>
+                Elenco
+              </button>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() =>
+                  insertHtml(
+                    '\n<figure><img src="" alt="" loading="lazy" /></figure>\n'
+                  )
+                }
+              >
                 Immagine
               </button>
-              <button type="button" className="button-secondary" onClick={() => insertAtCursor("\n<video controls playsinline src=\"\"></video>\n")}>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => insertHtml('\n<figure><video controls playsinline src=""></video></figure>\n')}
+              >
                 Video
               </button>
             </div>
-            <textarea
-              ref={textareaRef}
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              placeholder="Scrivi qui il testo dell'articolo. Puoi inserire immagini e video con il pulsante dedicato."
-              required
+
+            <div
+              ref={editorRef}
+              className="rich-editor"
+              contentEditable
+              suppressContentEditableWarning
+              role="textbox"
+              aria-multiline="true"
+              data-placeholder="Scrivi qui il tuo articolo. Puoi formattare il testo e inserire immagini o video nel corpo."
+              onInput={(event) => setContent((event.currentTarget as HTMLDivElement).innerHTML)}
+              dangerouslySetInnerHTML={{ __html: content }}
             />
-          </label>
+          </div>
 
           <div className="field">
             <span>Anteprima</span>
@@ -175,7 +272,25 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
           <div className="panel">
             <div className="grid">
               <label className="field">
-                <span>Immagine di copertina</span>
+                <span>Copertina</span>
+                {coverImageUrl ? (
+                  <img className="cover-preview" src={coverImageUrl} alt={coverImageAlt || title || "Copertina articolo"} />
+                ) : (
+                  <div className="cover-placeholder">Nessuna copertina caricata</div>
+                )}
+              </label>
+
+              <label className="field">
+                <span>Carica copertina dal PC</span>
+                <input ref={coverFileRef} type="file" accept="image/*" />
+              </label>
+
+              <button type="button" className="button-secondary" onClick={handleCoverUpload} disabled={coverUploading}>
+                {coverUploading ? "Caricamento..." : "Carica copertina"}
+              </button>
+
+              <label className="field">
+                <span>URL copertina</span>
                 <input value={coverImageUrl} onChange={(event) => setCoverImageUrl(event.target.value)} placeholder="URL immagine" />
               </label>
 
@@ -203,16 +318,16 @@ export function PostEditor({ mode, initial }: PostEditorProps) {
               </label>
 
               <div className="note">
-                Carica immagini o video, poi inseriscili direttamente nel testo con l'anteprima qui sopra.
+                Carica immagini o video dal computer e inseriscili nel corpo dell’articolo con l’editor visuale.
               </div>
 
               <label className="field">
-                <span>Upload media</span>
-                <input ref={fileRef} type="file" accept="image/*,video/*" />
+                <span>Media nel contenuto</span>
+                <input ref={contentFileRef} type="file" accept="image/*,video/*" />
               </label>
 
-              <button type="button" className="button-secondary" onClick={uploadSelectedFile} disabled={saving}>
-                Carica e inserisci
+              <button type="button" className="button-secondary" onClick={handleContentMediaUpload} disabled={contentUploading}>
+                {contentUploading ? "Inserimento..." : "Carica e inserisci"}
               </button>
             </div>
           </div>

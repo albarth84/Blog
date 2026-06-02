@@ -370,6 +370,47 @@ p {
   resize: vertical;
 }
 
+.rich-editor {
+  min-height: 320px;
+  border: 1px solid rgba(141, 61, 137, 0.18);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+  border-radius: 18px;
+  padding: 16px;
+  outline: none;
+}
+
+.rich-editor:focus {
+  border-color: rgba(139, 123, 240, 0.5);
+  box-shadow: 0 0 0 4px rgba(139, 123, 240, 0.12);
+}
+
+.rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #8f7c91;
+}
+
+.cover-preview,
+.cover-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 18px;
+}
+
+.cover-preview {
+  object-fit: cover;
+}
+
+.cover-placeholder {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, rgba(184, 92, 166, 0.14), rgba(139, 123, 240, 0.12));
+  color: var(--muted);
+  border: 1px dashed rgba(141, 61, 137, 0.2);
+  text-align: center;
+  padding: 16px;
+}
+
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
